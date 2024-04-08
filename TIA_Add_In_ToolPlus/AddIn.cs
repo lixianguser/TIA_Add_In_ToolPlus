@@ -17,6 +17,7 @@ using System;
 using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
+using System.Linq;
 using System.Windows.Forms;
 
 namespace TIA_Add_In_ToolPlus
@@ -24,10 +25,35 @@ namespace TIA_Add_In_ToolPlus
     public class AddIn : ContextMenuAddIn
     {
         private readonly TiaPortal _tiaPortal;
+        /// <summary>
+        /// Base class for projects
+        /// can be use in multi-user environment
+        /// </summary>
+        private readonly ProjectBase _projectBase;
 
         public AddIn(TiaPortal tiaPortal) : base("ToolPlus")
         {
             _tiaPortal = tiaPortal;
+            // Multi-user support
+            try
+            {
+                // If TIA Portal is in multi user environment (connected to project server)
+                if (_tiaPortal.LocalSessions.Any())
+                {
+                    _projectBase = _tiaPortal.LocalSessions
+                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
+                }
+                else
+                {
+                    // Get local project
+                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
+                } 
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine(ex.Message);
+                throw;
+            }
         }
 
         protected override void BuildContextMenuItems(ContextMenuAddInRoot addInRootSubmenu)
@@ -48,18 +74,22 @@ namespace TIA_Add_In_ToolPlus
                 if (folderBrowserDialog.ShowDialog(new Form()
                 { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK)
                 {
-                    foreach (IEngineeringObject iEngineeringObject in menuSelectionProvider.GetSelection())
+                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导出中……"))
                     {
-                        //查询名称是否包含“/”，如果包含替换更“_”
-                        string name = iEngineeringObject.GetAttribute("Name").ToString();
-                        while (name.Contains("/"))
+                        foreach (IEngineeringObject iEngineeringObject in menuSelectionProvider.GetSelection())
                         {
-                            name = name.Replace("/", "_");
-                        }
+                            //查询名称是否包含“/”，如果包含替换更“_”
+                            string name = iEngineeringObject.GetAttribute("Name").ToString();
+                            while (name.Contains("/"))
+                            {
+                                name = name.Replace("/", "_");
+                            }
 
-                        //导出数据
-                        string filePath = Path.Combine(folderBrowserDialog.SelectedPath, name + ".xml");
-                        Export(iEngineeringObject, filePath);
+                            //导出数据
+                            string filePath = Path.Combine(folderBrowserDialog.SelectedPath, name + ".xml");
+                            exclusiveAccess.Text = ("导出中-> {0}",filePath).ToString();
+                            Export(iEngineeringObject, filePath);
+                        }
                     }
                 }
 
@@ -87,11 +117,21 @@ namespace TIA_Add_In_ToolPlus
                 { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
                     && !string.IsNullOrEmpty(openFileDialog.FileName))
                 {
-                    foreach (PlcBlockGroup plcBlockGroup in menuSelectionProvider.GetSelection())
+                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
                     {
-                        foreach (string fileName in openFileDialog.FileNames)
+                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase,"导入Xml"))
                         {
-                            Import(plcBlockGroup, fileName);
+                            foreach (PlcBlockGroup plcBlockGroup in menuSelectionProvider.GetSelection())
+                            {
+                                foreach (string fileName in openFileDialog.FileNames)
+                                {
+                                    Import(plcBlockGroup, fileName);
+                                }
+                            }
+                            if (transaction.CanCommit)
+                            {
+                                transaction.CommitOnDispose();
+                            }
                         }
                     }
                 }
