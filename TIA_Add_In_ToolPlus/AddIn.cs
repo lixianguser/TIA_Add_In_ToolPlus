@@ -87,7 +87,7 @@ namespace TIA_Add_In_ToolPlus
 
                             //导出数据
                             string filePath = Path.Combine(folderBrowserDialog.SelectedPath, name + ".xml");
-                            exclusiveAccess.Text = ("导出中-> {0}",filePath).ToString();
+                            exclusiveAccess.Text = "导出中-> " + filePath;
                             Export(iEngineeringObject, filePath);
                         }
                     }
@@ -125,6 +125,7 @@ namespace TIA_Add_In_ToolPlus
                             {
                                 foreach (string fileName in openFileDialog.FileNames)
                                 {
+                                    exclusiveAccess.Text = "导入中-> " + fileName;
                                     Import(plcBlockGroup, fileName);
                                 }
                             }
