@@ -40,7 +40,8 @@ namespace TIA_Add_In_ToolPlus
         protected override void BuildContextMenuItems(ContextMenuAddInRoot addInRootSubmenu)
         {
             addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("导出", Export_OnClick);
-            addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("导入", Import_OnClick);
+            addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("如需导入，请选中程序块组",menuSelectionProvider => { }, ImportStatus);
+            addInRootSubmenu.Items.AddActionItem<PlcBlockGroup>("导入", Import_OnClick);
         }
 
         //导出块、用户数据类型、变量表：
@@ -88,7 +89,7 @@ namespace TIA_Add_In_ToolPlus
         //导入块、用户数据类型、变量表：
         //弹出选择文件窗体，后缀限制为xml
         //递归到"程序块"文件夹或用户自定义文件夹或PLC变量文件夹，再执行导入到文件夹
-        private void Import_OnClick(MenuSelectionProvider<IEngineeringObject> menuSelectionProvider)
+        private void Import_OnClick(MenuSelectionProvider<PlcBlockGroup> menuSelectionProvider)
         {
             try
             {
@@ -328,5 +329,21 @@ namespace TIA_Add_In_ToolPlus
                     break;
             }
         }
+        
+        private static MenuStatus ImportStatus(MenuSelectionProvider<IEngineeringObject> menuSelectionProvider)
+        {
+            var show = false;
+
+            foreach (IEngineeringObject engineeringObject in menuSelectionProvider.GetSelection())
+            {
+                if (!(engineeringObject is PlcBlockGroup))
+                {
+                    show = true;
+                    break;
+                }
+            }
+
+            return show ? MenuStatus.Disabled : MenuStatus.Hidden;
+        } 
     }
 }
