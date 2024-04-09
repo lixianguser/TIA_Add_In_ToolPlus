@@ -25,35 +25,16 @@ namespace TIA_Add_In_ToolPlus
     public class AddIn : ContextMenuAddIn
     {
         private readonly TiaPortal _tiaPortal;
+
         /// <summary>
         /// Base class for projects
         /// can be use in multi-user environment
         /// </summary>
-        private readonly ProjectBase _projectBase;
+        private ProjectBase _projectBase;
 
         public AddIn(TiaPortal tiaPortal) : base("ToolPlus")
         {
             _tiaPortal = tiaPortal;
-            // Multi-user support
-            try
-            {
-                // If TIA Portal is in multi user environment (connected to project server)
-                if (_tiaPortal.LocalSessions.Any())
-                {
-                    _projectBase = _tiaPortal.LocalSessions
-                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
-                }
-                else
-                {
-                    // Get local project
-                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
-                } 
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine(ex.Message);
-                throw;
-            }
         }
 
         protected override void BuildContextMenuItems(ContextMenuAddInRoot addInRootSubmenu)
@@ -72,12 +53,17 @@ namespace TIA_Add_In_ToolPlus
             {
                 FolderBrowserDialog folderBrowserDialog = new FolderBrowserDialog();
                 if (folderBrowserDialog.ShowDialog(new Form()
-                { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK)
+                        { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK)
                 {
                     using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导出中……"))
                     {
                         foreach (IEngineeringObject iEngineeringObject in menuSelectionProvider.GetSelection())
                         {
+                            if (exclusiveAccess.IsCancellationRequested)
+                            {
+                                break;
+                            }
+
                             //查询名称是否包含“/”，如果包含替换更“_”
                             string name = iEngineeringObject.GetAttribute("Name").ToString();
                             while (name.Contains("/"))
@@ -92,7 +78,6 @@ namespace TIA_Add_In_ToolPlus
                         }
                     }
                 }
-
             }
             catch (Exception ex)
             {
@@ -107,22 +92,40 @@ namespace TIA_Add_In_ToolPlus
         {
             try
             {
+                // Multi-user support
+                // If TIA Portal is in multi user environment (connected to project server)
+                if (_tiaPortal.LocalSessions.Any())
+                {
+                    _projectBase = _tiaPortal.LocalSessions
+                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
+                }
+                else
+                {
+                    // Get local project
+                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
+                }
+                
                 //选择并打开文件
                 OpenFileDialog openFileDialog = new OpenFileDialog
                 {
                     Multiselect = true,
-                    Filter = "xml File(*.xml)| *.xml"
+                    Filter      = "xml File(*.xml)| *.xml"
                 };
+                
                 if (openFileDialog.ShowDialog(new Form()
-                { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
+                        { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
                     && !string.IsNullOrEmpty(openFileDialog.FileName))
                 {
                     using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
                     {
-                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase,"导入Xml"))
+                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
                         {
                             foreach (PlcBlockGroup plcBlockGroup in menuSelectionProvider.GetSelection())
                             {
+                                if (exclusiveAccess.IsCancellationRequested)
+                                {
+                                    return;
+                                }
                                 foreach (string fileName in openFileDialog.FileNames)
                                 {
                                     exclusiveAccess.Text = "导入中-> " + fileName;
@@ -166,26 +169,26 @@ namespace TIA_Add_In_ToolPlus
             switch (exportItem)
             {
                 case PlcBlock item:
+                {
+                    if (item.ProgrammingLanguage == ProgrammingLanguage.ProDiag ||
+                        item.ProgrammingLanguage == ProgrammingLanguage.ProDiag_OB)
+                        return null;
+                    if (item.IsConsistent)
                     {
-                        if (item.ProgrammingLanguage == ProgrammingLanguage.ProDiag ||
-                            item.ProgrammingLanguage == ProgrammingLanguage.ProDiag_OB)
-                            return null;
-                        if (item.IsConsistent)
+                        // filePath = Path.Combine(filePath, AdjustNames.AdjustFileName(GetObjectName(item)) + ".xml");
+                        if (File.Exists(exportPath))
                         {
-                            // filePath = Path.Combine(filePath, AdjustNames.AdjustFileName(GetObjectName(item)) + ".xml");
-                            if (File.Exists(exportPath))
-                            {
-                                File.Delete(exportPath);
-                            }
-
-                            item.Export(new FileInfo(exportPath), exportOption);
-
-                            return exportPath;
+                            File.Delete(exportPath);
                         }
 
-                        throw new EngineeringException(string.Format(CultureInfo.InvariantCulture,
-                            "Block: {0} is inconsistent! Export will be aborted!", item.Name));
+                        item.Export(new FileInfo(exportPath), exportOption);
+
+                        return exportPath;
                     }
+
+                    throw new EngineeringException(string.Format(CultureInfo.InvariantCulture,
+                        "Block: {0} is inconsistent! Export will be aborted!", item.Name));
+                }
                 case PlcTagTable _:
                 case PlcType _:
                 case ScreenOverview _:
@@ -201,23 +204,23 @@ namespace TIA_Add_In_ToolPlus
                 case VBScript _:
                 case ScreenPopup _:
                 case ScreenSlidein _:
+                {
+                    // Directory.CreateDirectory(filePath);
+                    // filePath = Path.Combine(filePath, AdjustNames.AdjustFileName(GetObjectName(exportItem)) + ".xml");
+                    // File.Delete(filePath);
+                    if (File.Exists(exportPath))
                     {
-                        // Directory.CreateDirectory(filePath);
-                        // filePath = Path.Combine(filePath, AdjustNames.AdjustFileName(GetObjectName(exportItem)) + ".xml");
-                        // File.Delete(filePath);
-                        if (File.Exists(exportPath))
-                        {
-                            File.Delete(exportPath);
-                        }
+                        File.Delete(exportPath);
+                    }
 
-                        var parameter = new Dictionary<Type, object>
+                    var parameter = new Dictionary<Type, object>
                     {
                         { typeof(FileInfo), new FileInfo(exportPath) },
                         { typeof(ExportOptions), exportOption }
                     };
-                        exportItem.Invoke("Export", parameter);
-                        return exportPath;
-                    }
+                    exportItem.Invoke("Export", parameter);
+                    return exportPath;
+                }
                 case PlcExternalSource _:
                     //Directory.CreateDirectory(filePath);
                     //filePath = Path.Combine(filePath, AdjustNames.AdjustFileName(GetObjectName(exportItem)));
@@ -244,7 +247,7 @@ namespace TIA_Add_In_ToolPlus
             if (string.IsNullOrEmpty(filePath))
                 throw new ArgumentException("Parameter is null or empty", nameof(filePath));
 
-            FileInfo fileInfo = new FileInfo(filePath);
+            FileInfo            fileInfo     = new FileInfo(filePath);
             const ImportOptions importOption = ImportOptions.Override;
             filePath = fileInfo.FullName;
 
@@ -256,35 +259,35 @@ namespace TIA_Add_In_ToolPlus
                 case MultiLingualGraphicComposition _:
                 case GraphicListComposition _:
                 case TextListComposition _:
-                    {
-                        var parameter = new Dictionary<Type, object>();
-                        parameter.Add(typeof(string), filePath);
-                        parameter.Add(typeof(ImportOptions), importOption);
-                        // Export prüfen
-                        (destination as IEngineeringComposition).Invoke("Import", parameter);
-                        break;
-                    }
+                {
+                    var parameter = new Dictionary<Type, object>();
+                    parameter.Add(typeof(string), filePath);
+                    parameter.Add(typeof(ImportOptions), importOption);
+                    // Export prüfen
+                    (destination as IEngineeringComposition).Invoke("Import", parameter);
+                    break;
+                }
                 case PlcBlockGroup group when Path.GetExtension(filePath).Equals(".xml"):
                     group.Blocks.Import(fileInfo, importOption);
                     break;
                 case PlcBlockGroup _:
+                {
+                    IEngineeringObject currentDestination = destination as IEngineeringObject;
+                    while (!(currentDestination is PlcSoftware))
                     {
-                        IEngineeringObject currentDestination = destination as IEngineeringObject;
-                        while (!(currentDestination is PlcSoftware))
-                        {
-                            currentDestination = currentDestination.Parent;
-                        }
-
-                        PlcExternalSourceComposition col = (currentDestination as PlcSoftware).ExternalSourceGroup
-                            .ExternalSources;
-
-                        string sourceName = Path.GetRandomFileName();
-                        sourceName = Path.ChangeExtension(sourceName, ".src");
-                        PlcExternalSource src = col.CreateFromFile(sourceName, filePath);
-                        src.GenerateBlocksFromSource();
-                        src.Delete();
-                        break;
+                        currentDestination = currentDestination.Parent;
                     }
+
+                    PlcExternalSourceComposition col = (currentDestination as PlcSoftware).ExternalSourceGroup
+                        .ExternalSources;
+
+                    string sourceName = Path.GetRandomFileName();
+                    sourceName = Path.ChangeExtension(sourceName, ".src");
+                    PlcExternalSource src = col.CreateFromFile(sourceName, filePath);
+                    src.GenerateBlocksFromSource();
+                    src.Delete();
+                    break;
+                }
                 case PlcTagTableGroup group:
                     group.TagTables.Import(fileInfo, importOption);
                     break;
@@ -292,13 +295,13 @@ namespace TIA_Add_In_ToolPlus
                     group.Types.Import(fileInfo, importOption);
                     break;
                 case PlcExternalSourceGroup group:
-                    {
-                        PlcExternalSource temp = group.ExternalSources.Find(Path.GetFileName(filePath));
-                        if (temp != null)
-                            temp.Delete();
-                        group.ExternalSources.CreateFromFile(Path.GetFileName(filePath), filePath);
-                        break;
-                    }
+                {
+                    PlcExternalSource temp = group.ExternalSources.Find(Path.GetFileName(filePath));
+                    if (temp != null)
+                        temp.Delete();
+                    group.ExternalSources.CreateFromFile(Path.GetFileName(filePath), filePath);
+                    break;
+                }
                 case TagFolder folder:
                     folder.TagTables.Import(fileInfo, importOption);
                     break;
@@ -325,6 +328,5 @@ namespace TIA_Add_In_ToolPlus
                     break;
             }
         }
-
     }
 }
