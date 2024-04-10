@@ -43,6 +43,7 @@ namespace TIA_Add_In_ToolPlus
             addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("导出", Export_OnClick);
             addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("如需导入，请选中程序块组",menuSelectionProvider => { }, ImportStatus);
             addInRootSubmenu.Items.AddActionItem<PlcBlockGroup>("导入", Import_OnClick);
+            addInRootSubmenu.Items.AddActionItem<PlcWatchAndForceTableGroup>("导入", ImportWatchTable_OnClick);
         }
 
         //导出块、用户数据类型、变量表：
@@ -86,6 +87,67 @@ namespace TIA_Add_In_ToolPlus
                 MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
+        //导入块、用户数据类型、变量表：
+        //弹出选择文件窗体，后缀限制为xml
+        //递归到"程序块"文件夹或用户自定义文件夹或PLC变量文件夹，再执行导入到文件夹
+        private void ImportWatchTable_OnClick(MenuSelectionProvider<PlcWatchAndForceTableGroup> menuSelectionProvider)
+        {
+            try
+            {
+                // Multi-user support
+                // If TIA Portal is in multi user environment (connected to project server)
+                if (_tiaPortal.LocalSessions.Any())
+                {
+                    _projectBase = _tiaPortal.LocalSessions
+                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
+                }
+                else
+                {
+                    // Get local project
+                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
+                }
+                
+                //选择并打开文件
+                OpenFileDialog openFileDialog = new OpenFileDialog
+                {
+                    Multiselect = true,
+                    Filter      = "xml File(*.xml)| *.xml"
+                };
+                
+                if (openFileDialog.ShowDialog(new Form()
+                        { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
+                    && !string.IsNullOrEmpty(openFileDialog.FileName))
+                {
+                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
+                    {
+                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
+                        {
+                            foreach (PlcBlockGroup plcBlockGroup in menuSelectionProvider.GetSelection())
+                            {
+                                if (exclusiveAccess.IsCancellationRequested)
+                                {
+                                    return;
+                                }
+                                foreach (string fileName in openFileDialog.FileNames)
+                                {
+                                    exclusiveAccess.Text = "导入中-> " + fileName;
+                                    Import(plcBlockGroup, fileName);
+                                }
+                            }
+                            if (transaction.CanCommit)
+                            {
+                                transaction.CommitOnDispose();
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
 
         //导入块、用户数据类型、变量表：
         //弹出选择文件窗体，后缀限制为xml
@@ -341,7 +403,7 @@ namespace TIA_Add_In_ToolPlus
 
             foreach (IEngineeringObject engineeringObject in menuSelectionProvider.GetSelection())
             {
-                if (!(engineeringObject is PlcBlockGroup))
+                if (!(engineeringObject is PlcBlockGroup) & !(engineeringObject is PlcWatchAndForceTableGroup) )
                 {
                     show = true;
                     break;
