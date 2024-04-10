@@ -19,6 +19,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Windows.Forms;
+using Siemens.Engineering.SW.WatchAndForceTables;
 
 namespace TIA_Add_In_ToolPlus
 {
@@ -205,6 +206,7 @@ namespace TIA_Add_In_ToolPlus
                 case VBScript _:
                 case ScreenPopup _:
                 case ScreenSlidein _:
+                case PlcWatchTable _:
                 {
                     // Directory.CreateDirectory(filePath);
                     // filePath = Path.Combine(filePath, AdjustNames.AdjustFileName(GetObjectName(exportItem)) + ".xml");
@@ -326,6 +328,9 @@ namespace TIA_Add_In_ToolPlus
                     break;
                 case ScreenOverview _:
                     (destination.Parent as HmiTarget)?.ImportScreenOverview(fileInfo, importOption);
+                    break;
+                case PlcWatchAndForceTableGroup folder:
+                    folder.WatchTables.Import(fileInfo, importOption);
                     break;
             }
         }
