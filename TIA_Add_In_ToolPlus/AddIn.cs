@@ -181,7 +181,7 @@ namespace TIA_Add_In_ToolPlus
                     {
                         using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
                         {
-                            foreach (PlcWatchAndForceTableGroup plcWatchAndForceTableGroup in menuSelectionProvider.GetSelection())
+                            foreach (PlcTypeGroup plcTypeGroup in menuSelectionProvider.GetSelection())
                             {
                                 if (exclusiveAccess.IsCancellationRequested)
                                 {
@@ -190,7 +190,7 @@ namespace TIA_Add_In_ToolPlus
                                 foreach (string fileName in openFileDialog.FileNames)
                                 {
                                     exclusiveAccess.Text = "导入中-> " + fileName;
-                                    Import(plcWatchAndForceTableGroup, fileName);
+                                    Import(plcTypeGroup, fileName);
                                 }
                             }
                             if (transaction.CanCommit)
