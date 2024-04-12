@@ -43,6 +43,7 @@ namespace TIA_Add_In_ToolPlus
             addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("导出", Export_OnClick);
             addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("如需导入，请选中程序块组",menuSelectionProvider => { }, ImportStatus);
             addInRootSubmenu.Items.AddActionItem<PlcBlockGroup>("导入", Import_OnClick);
+            addInRootSubmenu.Items.AddActionItem<PlcTypeGroup>("导入", ImportUdt_OnClick);
             addInRootSubmenu.Items.AddActionItem<PlcWatchAndForceTableGroup>("导入", ImportWatchTable_OnClick);
         }
 
@@ -132,6 +133,64 @@ namespace TIA_Add_In_ToolPlus
                                 {
                                     exclusiveAccess.Text = "导入中-> " + fileName;
                                     Import(plcWatchAndForceTableGroup, fileName);
+                                }
+                            }
+                            if (transaction.CanCommit)
+                            {
+                                transaction.CommitOnDispose();
+                            }
+                        }
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
+            }
+        }
+
+        private void ImportUdt_OnClick(MenuSelectionProvider<PlcTypeGroup> menuSelectionProvider)
+        {
+            try
+            {
+                // Multi-user support
+                // If TIA Portal is in multi user environment (connected to project server)
+                if (_tiaPortal.LocalSessions.Any())
+                {
+                    _projectBase = _tiaPortal.LocalSessions
+                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
+                }
+                else
+                {
+                    // Get local project
+                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
+                }
+                
+                //选择并打开文件
+                OpenFileDialog openFileDialog = new OpenFileDialog
+                {
+                    Multiselect = true,
+                    Filter      = "xml File(*.xml)| *.xml"
+                };
+                
+                if (openFileDialog.ShowDialog(new Form()
+                        { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
+                    && !string.IsNullOrEmpty(openFileDialog.FileName))
+                {
+                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
+                    {
+                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
+                        {
+                            foreach (PlcTypeGroup plcTypeGroup in menuSelectionProvider.GetSelection())
+                            {
+                                if (exclusiveAccess.IsCancellationRequested)
+                                {
+                                    return;
+                                }
+                                foreach (string fileName in openFileDialog.FileNames)
+                                {
+                                    exclusiveAccess.Text = "导入中-> " + fileName;
+                                    Import(plcTypeGroup, fileName);
                                 }
                             }
                             if (transaction.CanCommit)
@@ -403,7 +462,9 @@ namespace TIA_Add_In_ToolPlus
 
             foreach (IEngineeringObject engineeringObject in menuSelectionProvider.GetSelection())
             {
-                if (!(engineeringObject is PlcBlockGroup) & !(engineeringObject is PlcWatchAndForceTableGroup) )
+                if (!(engineeringObject is PlcBlockGroup) & 
+                !(engineeringObject is PlcWatchAndForceTableGroup) 
+                & !(engineeringObject is PlcTypeGroup))
                 {
                     show = true;
                     break;
