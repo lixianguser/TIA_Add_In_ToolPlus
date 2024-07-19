@@ -356,7 +356,7 @@ namespace TIA_Add_In_ToolPlus
                 throw new ArgumentException("Parameter is null or empty", nameof(exportPath));
 
             // string filePath = Path.GetFullPath(exportPath);
-            const ExportOptions exportOption = ExportOptions.WithDefaults;
+            const ExportOptions exportOption = ExportOptions.WithDefaults | ExportOptions.WithReadOnly;
 
             switch (exportItem)
             {
