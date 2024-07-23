@@ -41,11 +41,8 @@ namespace TIA_Add_In_ToolPlus
         protected override void BuildContextMenuItems(ContextMenuAddInRoot addInRootSubmenu)
         {
             addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("导出", Export_OnClick);
-            addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("如需导入，请选中程序块组",menuSelectionProvider => { }, ImportStatus);
-            addInRootSubmenu.Items.AddActionItem<PlcBlockGroup>("导入", Import_OnClick);
-            addInRootSubmenu.Items.AddActionItem<PlcTypeGroup>("导入", Import_OnClick);
-            addInRootSubmenu.Items.AddActionItem<TagFolder>("导入", Import_OnClick);
-            addInRootSubmenu.Items.AddActionItem<PlcWatchAndForceTableGroup>("导入", Import_OnClick);
+            //addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("如需导入，请选中导入位置",menuSelectionProvider => { }, ImportStatus);
+            addInRootSubmenu.Items.AddActionItem<IEngineeringObject>("导入", Import_OnClick);
         }
 
         //导出块、用户数据类型、变量表：
@@ -80,6 +77,9 @@ namespace TIA_Add_In_ToolPlus
                             string filePath = Path.Combine(folderBrowserDialog.SelectedPath, name + ".xml");
                             exclusiveAccess.Text = "导出中-> " + filePath;
                             Export(iEngineeringObject, filePath);
+                            //导出完成
+                            MessageBox.Show($"目标文件:{filePath}", "导出完成", 
+                                MessageBoxButtons.OK, MessageBoxIcon.Information);
                         }
                     }
                 }
@@ -91,201 +91,15 @@ namespace TIA_Add_In_ToolPlus
         }
         
         /// <summary>
-        /// 导入监控表和强制表
-        /// </summary>
-        /// <param name="menuSelectionProvider"></param>
-        private void Import_OnClick(MenuSelectionProvider<PlcWatchAndForceTableGroup> menuSelectionProvider)
-        {
-            try
-            {
-                // Multi-user support
-                // If TIA Portal is in multi user environment (connected to project server)
-                if (_tiaPortal.LocalSessions.Any())
-                {
-                    _projectBase = _tiaPortal.LocalSessions
-                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
-                }
-                else
-                {
-                    // Get local project
-                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
-                }
-                
-                //选择并打开文件
-                OpenFileDialog openFileDialog = new OpenFileDialog
-                {
-                    Multiselect = true,
-                    Filter      = "xml File(*.xml)| *.xml"
-                };
-                
-                if (openFileDialog.ShowDialog(new Form()
-                        { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
-                    && !string.IsNullOrEmpty(openFileDialog.FileName))
-                {
-                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
-                    {
-                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
-                        {
-                            foreach (PlcWatchAndForceTableGroup plcWatchAndForceTableGroup in menuSelectionProvider.GetSelection())
-                            {
-                                if (exclusiveAccess.IsCancellationRequested)
-                                {
-                                    return;
-                                }
-                                foreach (string fileName in openFileDialog.FileNames)
-                                {
-                                    exclusiveAccess.Text = "导入中-> " + fileName;
-                                    Import(plcWatchAndForceTableGroup, fileName);
-                                }
-                            }
-                            if (transaction.CanCommit)
-                            {
-                                transaction.CommitOnDispose();
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        /// <summary>
-        /// 导入用户数据类型
-        /// </summary>
-        /// <param name="menuSelectionProvider"></param>
-        private void Import_OnClick(MenuSelectionProvider<PlcTypeGroup> menuSelectionProvider)
-        {
-            try
-            {
-                // Multi-user support
-                // If TIA Portal is in multi user environment (connected to project server)
-                if (_tiaPortal.LocalSessions.Any())
-                {
-                    _projectBase = _tiaPortal.LocalSessions
-                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
-                }
-                else
-                {
-                    // Get local project
-                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
-                }
-                
-                //选择并打开文件
-                OpenFileDialog openFileDialog = new OpenFileDialog
-                {
-                    Multiselect = true,
-                    Filter      = "xml File(*.xml)| *.xml"
-                };
-                
-                if (openFileDialog.ShowDialog(new Form()
-                        { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
-                    && !string.IsNullOrEmpty(openFileDialog.FileName))
-                {
-                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
-                    {
-                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
-                        {
-                            foreach (PlcTypeGroup plcTypeGroup in menuSelectionProvider.GetSelection())
-                            {
-                                if (exclusiveAccess.IsCancellationRequested)
-                                {
-                                    return;
-                                }
-                                foreach (string fileName in openFileDialog.FileNames)
-                                {
-                                    exclusiveAccess.Text = "导入中-> " + fileName;
-                                    Import(plcTypeGroup, fileName);
-                                }
-                            }
-                            if (transaction.CanCommit)
-                            {
-                                transaction.CommitOnDispose();
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        /// <summary>
-        /// 导入触摸屏变量
-        /// </summary>
-        /// <param name="menuSelectionProvider"></param>
-        private void Import_OnClick(MenuSelectionProvider<TagFolder> menuSelectionProvider)
-        {
-            try
-            {
-                // Multi-user support
-                // If TIA Portal is in multi user environment (connected to project server)
-                if (_tiaPortal.LocalSessions.Any())
-                {
-                    _projectBase = _tiaPortal.LocalSessions
-                        .FirstOrDefault(s => s.Project != null && s.Project.IsPrimary)?.Project;
-                }
-                else
-                {
-                    // Get local project
-                    _projectBase = _tiaPortal.Projects.FirstOrDefault(p => p.IsPrimary);
-                }
-
-                //选择并打开文件
-                OpenFileDialog openFileDialog = new OpenFileDialog
-                {
-                    Multiselect = true,
-                    Filter = "xml File(*.xml)| *.xml"
-                };
-
-                if (openFileDialog.ShowDialog(new Form()
-                { TopMost = true, WindowState = FormWindowState.Maximized }) == DialogResult.OK
-                    && !string.IsNullOrEmpty(openFileDialog.FileName))
-                {
-                    using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导入中……"))
-                    {
-                        using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
-                        {
-                            foreach (TagFolder tagFolder in menuSelectionProvider.GetSelection())
-                            {
-                                if (exclusiveAccess.IsCancellationRequested)
-                                {
-                                    return;
-                                }
-                                foreach (string fileName in openFileDialog.FileNames)
-                                {
-                                    exclusiveAccess.Text = "导入中-> " + fileName;
-                                    Import(tagFolder, fileName);
-                                }
-                            }
-                            if (transaction.CanCommit)
-                            {
-                                transaction.CommitOnDispose();
-                            }
-                        }
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
-            }
-        }
-
-        /// <summary>
         /// 导入程序块
         /// </summary>
         /// <param name="menuSelectionProvider"></param>
-        private void Import_OnClick(MenuSelectionProvider<PlcBlockGroup> menuSelectionProvider)
+        private void Import_OnClick(MenuSelectionProvider<IEngineeringObject> menuSelectionProvider)
         {
             try
             {
                 // Multi-user support
-                // If TIA Portal is in multi user environment (connected to project server)
+                // If TIA Portal is in multiuser environment (connected to project server)
                 if (_tiaPortal.LocalSessions.Any())
                 {
                     _projectBase = _tiaPortal.LocalSessions
@@ -312,7 +126,7 @@ namespace TIA_Add_In_ToolPlus
                     {
                         using (Transaction transaction = exclusiveAccess.Transaction(_projectBase, "导入Xml"))
                         {
-                            foreach (PlcBlockGroup plcBlockGroup in menuSelectionProvider.GetSelection())
+                            foreach (IEngineeringCompositionOrObject iEngineeringCompositionOrObject in menuSelectionProvider.GetSelection())
                             {
                                 if (exclusiveAccess.IsCancellationRequested)
                                 {
@@ -321,7 +135,7 @@ namespace TIA_Add_In_ToolPlus
                                 foreach (string fileName in openFileDialog.FileNames)
                                 {
                                     exclusiveAccess.Text = "导入中-> " + fileName;
-                                    Import(plcBlockGroup, fileName);
+                                    Import(iEngineeringCompositionOrObject, fileName);
                                 }
                             }
                             if (transaction.CanCommit)
@@ -337,7 +151,7 @@ namespace TIA_Add_In_ToolPlus
                 MessageBox.Show(ex.Message, "异常", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
         }
-
+        
         /// <summary>
         /// 导出PLC数据
         /// </summary>
@@ -347,7 +161,7 @@ namespace TIA_Add_In_ToolPlus
         /// <exception cref="ArgumentException"></exception>
         /// <exception cref="EngineeringException"></exception>
         /// <returns></returns>
-        public static string Export(IEngineeringObject exportItem, string exportPath)
+        private static string Export(IEngineeringObject exportItem, string exportPath)
         {
             // plcBlock.Export(fileInfo,ExportOptions.WithDefaults);
             if (exportItem == null)
@@ -433,7 +247,7 @@ namespace TIA_Add_In_ToolPlus
         /// <param name="filePath"></param>
         /// <exception cref="ArgumentNullException"></exception>
         /// <exception cref="ArgumentException"></exception>
-        public static void Import(IEngineeringCompositionOrObject destination, string filePath)
+        private static void Import(IEngineeringCompositionOrObject destination, string filePath)
         {
             if (destination == null)
                 throw new ArgumentNullException(nameof(destination), "Parameter is null");
@@ -522,32 +336,12 @@ namespace TIA_Add_In_ToolPlus
                 case PlcWatchAndForceTableGroup folder:
                     folder.WatchTables.Import(fileInfo, importOption);
                     break;
+                default:
+                    //导入失败
+                    MessageBox.Show("", "导入失败", 
+                        MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    break;
             }
         }
-        
-        /// <summary>
-        /// 导入按钮显示
-        /// </summary>
-        /// <param name="menuSelectionProvider"></param>
-        /// <returns></returns>
-        private static MenuStatus ImportStatus(MenuSelectionProvider<IEngineeringObject> menuSelectionProvider)
-        {
-            var show = false;
-
-            foreach (IEngineeringObject engineeringObject in menuSelectionProvider.GetSelection())
-            {
-                if (!(engineeringObject is PlcBlockGroup) & 
-                !(engineeringObject is PlcWatchAndForceTableGroup) &
-                !(engineeringObject is PlcTypeGroup) &
-                !(engineeringObject is TagFolder)
-                )
-                {
-                    show = true;
-                    break;
-                }
-            }
-
-            return show ? MenuStatus.Disabled : MenuStatus.Hidden;
-        } 
     }
 }
