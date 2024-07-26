@@ -59,6 +59,7 @@ namespace TIA_Add_In_ToolPlus
                 {
                     using (ExclusiveAccess exclusiveAccess = _tiaPortal.ExclusiveAccess("导出中……"))
                     {
+                        string files = "";
                         foreach (IEngineeringObject iEngineeringObject in menuSelectionProvider.GetSelection())
                         {
                             if (exclusiveAccess.IsCancellationRequested)
@@ -73,14 +74,17 @@ namespace TIA_Add_In_ToolPlus
                                 name = name.Replace("/", "_");
                             }
 
+                            string objectType = iEngineeringObject.GetType().ToString();
+                            
                             //导出数据
-                            string filePath = Path.Combine(folderBrowserDialog.SelectedPath, name + ".xml");
+                            string filePath = Path.Combine(folderBrowserDialog.SelectedPath, $"{objectType}+{name}.xml");
                             exclusiveAccess.Text = "导出中-> " + filePath;
                             Export(iEngineeringObject, filePath);
-                            //导出完成
-                            MessageBox.Show($"目标文件:{filePath}", "导出完成", 
-                                MessageBoxButtons.OK, MessageBoxIcon.Information);
+                            files += filePath + "\r\n";
                         }
+                        //导出完成
+                        MessageBox.Show($"目标文件:\r\n{files}", "导出完成", 
+                            MessageBoxButtons.OK, MessageBoxIcon.Information);
                     }
                 }
             }
